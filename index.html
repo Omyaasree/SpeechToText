@@ -35,6 +35,24 @@
     </section>
 
     <section class="panel">
+      <div class="control-group transport-group">
+        <label>Playback</label>
+        <div class="transport">
+          <button type="button" id="play-btn" class="primary">
+            <svg class="icon" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5-9-5.5z"/></svg>Play
+          </button>
+          <button type="button" id="pause-btn" disabled>
+            <svg class="icon" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>Pause
+          </button>
+          <button type="button" id="stop-btn" disabled>
+            <svg class="icon" viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="3.5" width="9" height="9"/></svg>Stop
+          </button>
+          <div class="progress-track" aria-hidden="true">
+            <div class="progress-fill" id="progress-fill"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="text-area-wrap">
         <textarea id="text-input" placeholder="Paste or type text here, or upload a .txt file below."></textarea>
         <div id="text-display" hidden aria-live="off" title="Click a word to jump playback there"></div>
@@ -73,24 +91,6 @@
         <div class="control-group">
           <label for="voice-select">Voice</label>
           <select id="voice-select"></select>
-        </div>
-
-        <div class="control-group">
-          <label>Playback</label>
-          <div class="transport">
-            <button type="button" id="play-btn" class="primary">
-              <svg class="icon" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5-9-5.5z"/></svg>Play
-            </button>
-            <button type="button" id="pause-btn" disabled>
-              <svg class="icon" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>Pause
-            </button>
-            <button type="button" id="stop-btn" disabled>
-              <svg class="icon" viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="3.5" width="9" height="9"/></svg>Stop
-            </button>
-            <div class="progress-track" aria-hidden="true">
-              <div class="progress-fill" id="progress-fill"></div>
-            </div>
-          </div>
         </div>
       </div>
     </section>

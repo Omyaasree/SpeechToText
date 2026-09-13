@@ -100,7 +100,7 @@ main {
   width: 100%;
   max-width: 880px;
   margin: 0 auto;
-  padding: 40px max(24px, env(safe-area-inset-right)) 64px max(24px, env(safe-area-inset-left));
+  padding: 20px max(24px, env(safe-area-inset-right)) 64px max(24px, env(safe-area-inset-left));
 }
 
 .hero {
@@ -135,6 +135,10 @@ main {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 20px;
+}
+
+.transport-group {
+  margin-bottom: 20px;
 }
 
 .text-area-wrap {
@@ -193,6 +197,13 @@ main {
 
 #text-display .word.active:hover {
   background: var(--accent);
+}
+
+@media (max-width: 600px) {
+  #text-input,
+  #text-display {
+    line-height: 1.1;
+  }
 }
 
 .meta-row {

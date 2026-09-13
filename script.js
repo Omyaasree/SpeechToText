@@ -36,6 +36,14 @@
   const RATE_MIN = 0.02;
   const RATE_MAX = 2;
 
+  // Mobile browsers (Android Chrome, iOS Safari) handle speechSynthesis
+  // pause()/resume() unreliably - resume() frequently fails to actually
+  // resume and playback just stops. Desktop-only workarounds below are
+  // gated behind this so they can't break mobile in the process of fixing
+  // a desktop-only bug.
+  const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
   function sliderPosToRate(pos) {
     const t = Math.min(1, Math.max(0, pos / 100));
     return RATE_MIN * Math.pow(RATE_MAX / RATE_MIN, t);
@@ -51,6 +59,7 @@
   let state = 'idle'; // idle | playing | paused
   let utterance = null;
   let keepAliveTimer = null;
+  let lastNativeOffset = 0;
 
   // Chunked (ultra-slow) playback state
   let mode = 'native'; // native | chunked
@@ -207,9 +216,11 @@
 
   function startKeepAlive() {
     stopKeepAlive();
-    // Chrome silently stops long utterances after ~15s of continuous speech;
-    // a periodic pause/resume avoids that. Only relevant in native mode,
-    // since chunked mode never speaks a single utterance that long.
+    // Chrome DESKTOP silently stops long utterances after ~15s of continuous
+    // speech; a periodic pause/resume avoids that. Never run this on mobile:
+    // Android Chrome and iOS Safari frequently fail to actually resume after
+    // pause(), which kills playback entirely instead of keeping it alive.
+    if (IS_MOBILE) return;
     keepAliveTimer = setInterval(() => {
       if (mode === 'native' && speechSynthesis.speaking && !speechSynthesis.paused) {
         speechSynthesis.pause();
@@ -244,7 +255,10 @@
 
     utt.onboundary = (e) => {
       if (token !== playToken) return;
-      if (typeof e.charIndex === 'number') highlightWordAt(offset + e.charIndex);
+      if (typeof e.charIndex === 'number') {
+        lastNativeOffset = offset + e.charIndex;
+        highlightWordAt(lastNativeOffset);
+      }
     };
     utt.onend = () => { if (token === playToken) onPlaybackEnd(); };
     utt.onerror = () => { if (token === playToken) onPlaybackEnd(); };
@@ -298,28 +312,48 @@
   }
 
   function playFrom(idx) {
-    playToken += 1;
-    speechSynthesis.cancel();
-    if (chunkTimer) {
-      clearTimeout(chunkTimer);
-      chunkTimer = null;
-    }
-
     if (!words.length) {
       words = tokenize(els.textInput.value);
       renderWordSpans();
     }
     if (!words[idx]) return;
 
+    playToken += 1;
+    const token = playToken;
+    const wasActive = speechSynthesis.speaking || speechSynthesis.pending;
+
+    speechSynthesis.cancel();
+    if (chunkTimer) {
+      clearTimeout(chunkTimer);
+      chunkTimer = null;
+    }
+
     els.textInput.hidden = true;
     els.textDisplay.hidden = false;
-
-    if (currentRate() >= RATE_FLOOR - 1e-9) {
-      playNativeFrom(words[idx].start);
-    } else {
-      playChunkedFrom(idx);
-    }
     setControlsState('playing');
+
+    const startOffset = words[idx].start;
+    const useChunked = currentRate() < RATE_FLOOR - 1e-9;
+
+    const begin = () => {
+      if (token !== playToken) return;
+      if (useChunked) {
+        playChunkedFrom(idx);
+      } else {
+        playNativeFrom(startOffset);
+      }
+    };
+
+    // On mobile, starting a new utterance in the same tick as cancel()ing
+    // the previous one is unreliable - it can appear to start then die a
+    // few words in, because the engine hasn't finished tearing the old one
+    // down yet. A short delay avoids that. Skipped when nothing was
+    // playing (a fresh Play press), so that still starts instantly.
+    if (wasActive && IS_MOBILE) {
+      setTimeout(begin, 150);
+    } else {
+      begin();
+    }
   }
 
   function speak() {
@@ -339,6 +373,14 @@
       clearTimeout(chunkTimer);
       chunkTimer = null;
       pausedInGap = true;
+    } else if (mode === 'native' && IS_MOBILE) {
+      // speechSynthesis.resume() is unreliable on mobile after pause() -
+      // it frequently just never resumes. Instead of a true pause, stop
+      // outright and remember exactly where we were; resuming restarts a
+      // fresh utterance from that position (see resumeSpeech below).
+      playToken += 1;
+      stopKeepAlive();
+      speechSynthesis.cancel();
     } else {
       pausedInGap = false;
       speechSynthesis.pause();
@@ -350,6 +392,8 @@
     if (mode === 'chunked' && pausedInGap) {
       pausedInGap = false;
       playNextChunk();
+    } else if (mode === 'native' && IS_MOBILE) {
+      playNativeFrom(lastNativeOffset);
     } else {
       speechSynthesis.resume();
     }
