@@ -154,10 +154,26 @@
     const rate = currentRate();
     els.speedValue.textContent = `${rate.toFixed(2)}x`;
     els.speedSlider.style.setProperty('--fill', `${els.speedSlider.value}%`);
-    if (mode === 'native' && utterance) utterance.rate = rate;
     els.speedPresets.forEach(btn => {
       btn.classList.toggle('active', Math.abs(parseFloat(btn.dataset.speed) - rate) < 0.005);
     });
+  }
+
+  // A SpeechSynthesisUtterance's rate is fixed the moment speak() is called;
+  // changing utterance.rate afterward has no effect on browsers. The only
+  // way to actually change speed mid-playback is to restart from exactly
+  // where we are, at the new rate - which is also how a rate change can
+  // cross the RATE_FLOOR boundary between native and chunked playback.
+  function applyRateChangeIfPlaying() {
+    if (state !== 'playing' || !words.length) return;
+    let idx;
+    if (mode === 'chunked') {
+      idx = chunkIndex;
+    } else {
+      idx = words.findIndex(w => lastNativeOffset >= w.start && lastNativeOffset < w.end);
+      if (idx < 0) idx = 0;
+    }
+    playFrom(idx);
   }
 
   function setRate(rate) {
@@ -166,8 +182,12 @@
   }
 
   els.speedSlider.addEventListener('input', updateSpeedLabel);
+  els.speedSlider.addEventListener('change', applyRateChangeIfPlaying);
   els.speedPresets.forEach(btn => {
-    btn.addEventListener('click', () => setRate(parseFloat(btn.dataset.speed)));
+    btn.addEventListener('click', () => {
+      setRate(parseFloat(btn.dataset.speed));
+      applyRateChangeIfPlaying();
+    });
   });
   setRate(0.3);
 
