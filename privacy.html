@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Privacy Policy · Text to Speech</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="theme-color" content="#faf9f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#171614" media="(prefers-color-scheme: dark)">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="legal">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="index.html" class="wordmark">Text to Speech</a>
+      <nav class="site-nav">
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <h1>Privacy Policy</h1>
+    <p class="updated">Last updated: [fill in launch date]</p>
+
+    <p>This page explains what happens to your text when you use this app. It is written to match how the app actually works, described below.</p>
+
+    <h2>No server, no account</h2>
+    <p>This app has no backend and no user accounts. There is nothing to sign up for, and no database that stores what you type or upload.</p>
+
+    <h2>How your text is processed</h2>
+    <p>Text you enter is read aloud using your browser's built-in speech synthesis feature (the Web Speech API). What happens to that text depends on which voice you select:</p>
+    <ul>
+      <li><strong>On-device voices:</strong> processed entirely on your computer or phone. The text never leaves your device.</li>
+      <li><strong>Remote or network voices</strong> (for example, some default voices in Chrome): your browser sends the text directly to the voice provider's own servers to generate audio. That transfer happens between your browser and the voice provider. This app does not see, log, or relay that text.</li>
+    </ul>
+    <p>Your operating system and browser control which voices are available and which category they fall into. Check your browser or system voice settings if you want to confirm which type a given voice is.</p>
+
+    <h2>Files you upload</h2>
+    <p>The "Upload .txt file" button reads a file directly in your browser and loads its contents into the text box on this page. The file is never uploaded to a server.</p>
+
+    <h2>Local storage and cookies</h2>
+    <p>This app does not set cookies and does not use browser storage to track you or save your text between visits.</p>
+
+    <h2>Analytics and third parties</h2>
+    <p>[Fill in: state here whether you add any analytics, ads, or third-party scripts before launch. If none are added, you can state plainly that this site does not use analytics or third-party tracking.]</p>
+
+    <h2>Changes to this policy</h2>
+    <p>If how this app handles text ever changes, this page will be updated and the date above will change.</p>
+
+    <h2>Contact</h2>
+    <p>Questions about this policy: [fill in contact email].</p>
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer-inner">
+      <span>&copy; <span id="year"></span> Text to Speech</span>
+      <nav>
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+      </nav>
+    </div>
+  </footer>
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</body>
+</html>

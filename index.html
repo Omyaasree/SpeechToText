@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Text to Speech</title>
+  <meta name="description" content="Convert text to speech in your browser with adjustable playback speed, from ultra-slow up to 2x.">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="theme-color" content="#faf9f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#171614" media="(prefers-color-scheme: dark)">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="index.html" class="wordmark">Text to Speech</a>
+      <nav class="site-nav">
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div id="unsupported-banner" hidden>
+      Your browser does not support the Web Speech API, so playback is unavailable here. Try a recent version of Chrome, Edge, or Safari.
+    </div>
+
+    <section class="hero">
+      <h1>Paste text, choose a speed, listen</h1>
+      <p>Works entirely in your browser. Adjust the rate from ultra-slow to 2x speed, and click any word during playback to jump straight to it.</p>
+    </section>
+
+    <section class="panel">
+      <div class="text-area-wrap">
+        <textarea id="text-input" placeholder="Paste or type text here, or upload a .txt file below."></textarea>
+        <div id="text-display" hidden aria-live="off" title="Click a word to jump playback there"></div>
+      </div>
+      <div class="meta-row">
+        <span><span id="char-count">0 characters</span> · <span id="word-count">0 words</span></span>
+        <div class="file-row">
+          <button type="button" id="upload-btn">Upload .txt file</button>
+          <button type="button" id="clear-btn">Clear</button>
+        </div>
+      </div>
+      <input type="file" id="file-input" accept=".txt,text/plain" hidden>
+
+      <div class="controls">
+        <div class="control-group">
+          <label for="speed-slider">Playback speed</label>
+          <div class="speed-row">
+            <span style="font-size:13px; color: var(--text-muted);">0.02x</span>
+            <input type="range" id="speed-slider" min="0" max="100" step="0.5" value="0">
+            <span style="font-size:13px; color: var(--text-muted);">2x</span>
+            <span id="speed-value">0.30x</span>
+          </div>
+          <div class="speed-presets" id="speed-presets">
+            <button type="button" class="speed-preset" data-speed="0.05">0.05x</button>
+            <button type="button" class="speed-preset" data-speed="0.1">0.1x</button>
+            <button type="button" class="speed-preset" data-speed="0.3">0.3x</button>
+            <button type="button" class="speed-preset" data-speed="0.5">0.5x</button>
+            <button type="button" class="speed-preset" data-speed="0.75">0.75x</button>
+            <button type="button" class="speed-preset" data-speed="1">1x</button>
+            <button type="button" class="speed-preset" data-speed="1.5">1.5x</button>
+            <button type="button" class="speed-preset" data-speed="2">2x</button>
+          </div>
+          <p class="hint">Below 0.1x, words are played individually with silence between them: your browser's speech engine cannot physically speak slower than 0.1x, so this is what makes the very slow end still get slower.</p>
+        </div>
+
+        <div class="control-group">
+          <label for="voice-select">Voice</label>
+          <select id="voice-select"></select>
+        </div>
+
+        <div class="control-group">
+          <label>Playback</label>
+          <div class="transport">
+            <button type="button" id="play-btn" class="primary">
+              <svg class="icon" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5-9-5.5z"/></svg>Play
+            </button>
+            <button type="button" id="pause-btn" disabled>
+              <svg class="icon" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>Pause
+            </button>
+            <button type="button" id="stop-btn" disabled>
+              <svg class="icon" viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="3.5" width="9" height="9"/></svg>Stop
+            </button>
+            <div class="progress-track" aria-hidden="true">
+              <div class="progress-fill" id="progress-fill"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer-inner">
+      <span>&copy; <span id="year"></span> Text to Speech</span>
+      <nav>
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
