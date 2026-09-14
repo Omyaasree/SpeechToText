@@ -38,9 +38,13 @@
 
   // Mobile browsers (Android Chrome, iOS Safari) handle speechSynthesis
   // pause()/resume() unreliably - resume() frequently fails to actually
-  // resume and playback just stops. Desktop-only workarounds below are
-  // gated behind this so they can't break mobile in the process of fixing
-  // a desktop-only bug.
+  // resume and playback just stops. They also frequently never fire the
+  // 'boundary' event at all (iOS Safari essentially never does), which is
+  // the only thing that drives word highlighting and position tracking in
+  // a single continuous utterance. Rather than depend on a browser feature
+  // mobile doesn't support reliably, mobile always uses the per-word
+  // "chunked" playback engine below (see playFrom), which tracks position
+  // itself word-by-word and doesn't need boundary events for anything.
   const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
@@ -303,8 +307,12 @@
     const w = words[chunkIndex];
     highlightWordAt(w.start);
 
+    // Each word is spoken at the real selected rate when that's within the
+    // engine's range; only below RATE_FLOOR do we speak at the engine's
+    // floor and stretch the pace out with silence between words instead.
+    const rate = currentRate();
     const utt = new SpeechSynthesisUtterance(w.text);
-    utt.rate = RATE_FLOOR;
+    utt.rate = Math.max(rate, RATE_FLOOR);
     const v = selectedVoice();
     if (v) utt.voice = v;
 
@@ -312,7 +320,7 @@
     utt.onend = () => {
       if (token !== playToken) return;
       const spokenMs = performance.now() - startedAt;
-      const gapMultiplier = Math.max(0, RATE_FLOOR / currentRate() - 1);
+      const gapMultiplier = Math.max(0, RATE_FLOOR / rate - 1);
       const gapMs = spokenMs * gapMultiplier;
       chunkIndex += 1;
       pausedInGap = false;
@@ -353,7 +361,7 @@
     setControlsState('playing');
 
     const startOffset = words[idx].start;
-    const useChunked = currentRate() < RATE_FLOOR - 1e-9;
+    const useChunked = IS_MOBILE || currentRate() < RATE_FLOOR - 1e-9;
 
     const begin = () => {
       if (token !== playToken) return;
@@ -390,9 +398,19 @@
 
   function pauseSpeech() {
     if (mode === 'chunked' && chunkTimer) {
+      // Paused during the artificial gap between words: nothing is
+      // speaking, just stop the scheduled next word.
       clearTimeout(chunkTimer);
       chunkTimer = null;
       pausedInGap = true;
+    } else if (mode === 'chunked' && IS_MOBILE) {
+      // Paused mid-word on mobile. speechSynthesis.pause()/resume() is
+      // unreliable on mobile - resume() frequently just never resumes -
+      // so cancel outright instead; resuming re-speaks this one short
+      // word from its start, which is imperceptible.
+      playToken += 1;
+      speechSynthesis.cancel();
+      pausedInGap = false;
     } else if (mode === 'native' && IS_MOBILE) {
       // speechSynthesis.resume() is unreliable on mobile after pause() -
       // it frequently just never resumes. Instead of a true pause, stop
@@ -411,6 +429,8 @@
   function resumeSpeech() {
     if (mode === 'chunked' && pausedInGap) {
       pausedInGap = false;
+      playNextChunk();
+    } else if (mode === 'chunked' && IS_MOBILE) {
       playNextChunk();
     } else if (mode === 'native' && IS_MOBILE) {
       playNativeFrom(lastNativeOffset);
