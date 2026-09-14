@@ -10,6 +10,8 @@
     speedSlider: document.getElementById('speed-slider'),
     speedValue: document.getElementById('speed-value'),
     speedPresets: document.querySelectorAll('.speed-preset'),
+    modeOptions: document.querySelectorAll('.mode-option'),
+    modeHint: document.getElementById('mode-hint'),
     voiceSelect: document.getElementById('voice-select'),
     playBtn: document.getElementById('play-btn'),
     pauseBtn: document.getElementById('pause-btn'),
@@ -41,12 +43,17 @@
   // resume and playback just stops. They also frequently never fire the
   // 'boundary' event at all (iOS Safari essentially never does), which is
   // the only thing that drives word highlighting and position tracking in
-  // a single continuous utterance. Rather than depend on a browser feature
-  // mobile doesn't support reliably, mobile always uses the per-word
-  // "chunked" playback engine below (see playFrom), which tracks position
-  // itself word-by-word and doesn't need boundary events for anything.
+  // a single continuous "sentences" utterance. See startPositionEstimator
+  // below for how sentences mode still tracks position on those browsers.
   const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  // Average speaking rate at utterance.rate = 1, used only as a fallback
+  // position estimate when real 'boundary' events aren't arriving (see
+  // startPositionEstimator). ~150 wpm at ~6 characters per word (incl. the
+  // trailing space) is a commonly cited baseline; utterance.rate is defined
+  // as a multiplier on that baseline, so we scale this by rate directly.
+  const NATIVE_CHARS_PER_SEC_AT_1X = 15;
 
   function sliderPosToRate(pos) {
     const t = Math.min(1, Math.max(0, pos / 100));
@@ -64,12 +71,21 @@
   let utterance = null;
   let keepAliveTimer = null;
   let lastNativeOffset = 0;
+  let readMode = 'sentences'; // sentences | words
 
-  // Chunked (ultra-slow) playback state
+  // Chunked (word-by-word) playback state
   let mode = 'native'; // native | chunked
   let chunkIndex = 0;
   let chunkTimer = null;
   let pausedInGap = false;
+
+  // Fallback position estimate for "sentences" mode on browsers that don't
+  // fire real 'boundary' events (see startPositionEstimator).
+  let estimateTimer = null;
+  let estimateAnchorOffset = 0;
+  let estimateAnchorTime = 0;
+  let estimateRate = 1;
+  let lastBoundaryAt = 0;
 
   // Incremented on every fresh start/seek/stop so that async callbacks
   // (onend/onerror) from an utterance that was just canceled, which fire
@@ -161,22 +177,26 @@
     els.speedPresets.forEach(btn => {
       btn.classList.toggle('active', Math.abs(parseFloat(btn.dataset.speed) - rate) < 0.005);
     });
+
+    // Below RATE_FLOOR, reading style has no effect - the engine physically
+    // cannot speak that slowly except word-by-word with gaps - so the
+    // toggle is disabled and the hint explains why, rather than silently
+    // being ignored.
+    const belowFloor = rate < RATE_FLOOR - 1e-9;
+    els.modeOptions.forEach(btn => { btn.disabled = belowFloor; });
+    els.modeHint.textContent = belowFloor
+      ? 'Below 0.1x, playback always reads word by word with pauses between them, regardless of this setting.'
+      : 'Sentences reads with natural flow. Words reads one word at a time, useful for close, deliberate listening.';
   }
 
-  // A SpeechSynthesisUtterance's rate is fixed the moment speak() is called;
-  // changing utterance.rate afterward has no effect on browsers. The only
-  // way to actually change speed mid-playback is to restart from exactly
-  // where we are, at the new rate - which is also how a rate change can
-  // cross the RATE_FLOOR boundary between native and chunked playback.
-  function applyRateChangeIfPlaying() {
+  // A SpeechSynthesisUtterance's rate is fixed the moment speak() is called,
+  // and its engine (native full-text vs. word-by-word) is chosen when that
+  // utterance starts - neither can change on one already in flight. So a
+  // change to the speed OR the reading style, while already playing,
+  // restarts from exactly the current word under the new setting.
+  function restartFromCurrentPositionIfPlaying() {
     if (state !== 'playing' || !words.length) return;
-    let idx;
-    if (mode === 'chunked') {
-      idx = chunkIndex;
-    } else {
-      idx = words.findIndex(w => lastNativeOffset >= w.start && lastNativeOffset < w.end);
-      if (idx < 0) idx = 0;
-    }
+    const idx = mode === 'chunked' ? chunkIndex : Math.max(0, wordIndexAt(lastNativeOffset));
     playFrom(idx);
   }
 
@@ -186,13 +206,30 @@
   }
 
   els.speedSlider.addEventListener('input', updateSpeedLabel);
-  els.speedSlider.addEventListener('change', applyRateChangeIfPlaying);
+  els.speedSlider.addEventListener('change', restartFromCurrentPositionIfPlaying);
   els.speedPresets.forEach(btn => {
     btn.addEventListener('click', () => {
       setRate(parseFloat(btn.dataset.speed));
-      applyRateChangeIfPlaying();
+      restartFromCurrentPositionIfPlaying();
     });
   });
+
+  function setReadMode(newMode) {
+    readMode = newMode;
+    els.modeOptions.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === newMode);
+    });
+  }
+
+  els.modeOptions.forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return;
+      setReadMode(btn.dataset.mode);
+      restartFromCurrentPositionIfPlaying();
+    });
+  });
+
+  setReadMode('sentences');
   setRate(0.3);
 
   function renderWordSpans() {
@@ -215,8 +252,22 @@
     playFrom(idx);
   });
 
+  // The last word that has started by charIndex, not an exact-bounds match:
+  // charIndex sits in inter-word whitespace half the time (always true for
+  // the estimated position in sentences mode, which advances continuously
+  // rather than landing exactly on word starts), and a strict match would
+  // fail to resolve to any word at all during such a gap.
+  function wordIndexAt(charIndex) {
+    let idx = -1;
+    for (let i = 0; i < words.length; i++) {
+      if (words[i].start <= charIndex) idx = i;
+      else break;
+    }
+    return idx;
+  }
+
   function highlightWordAt(charIndex) {
-    const idx = words.findIndex(w => charIndex >= w.start && charIndex < w.end);
+    const idx = wordIndexAt(charIndex);
     const spans = els.textDisplay.querySelectorAll('.word');
     spans.forEach(s => s.classList.remove('active'));
     if (idx >= 0 && spans[idx]) {
@@ -260,8 +311,37 @@
     }
   }
 
+  // "Sentences" mode speaks one continuous utterance and relies on the
+  // browser's 'boundary' event to know which word is currently being
+  // spoken. Where that event fires reliably (desktop), it stays fully in
+  // control and this estimator never actually changes anything. Where it
+  // doesn't (most mobile browsers), this is the only thing that advances
+  // the highlight and tracked position at all, extrapolated from elapsed
+  // time and the standard meaning of utterance.rate as a speed multiplier.
+  function startPositionEstimator(offset, rate) {
+    stopPositionEstimator();
+    estimateAnchorOffset = offset;
+    estimateAnchorTime = performance.now();
+    estimateRate = rate;
+    estimateTimer = setInterval(() => {
+      if (performance.now() - lastBoundaryAt < 400) return;
+      const elapsedSec = (performance.now() - estimateAnchorTime) / 1000;
+      const estOffset = estimateAnchorOffset + elapsedSec * NATIVE_CHARS_PER_SEC_AT_1X * estimateRate;
+      lastNativeOffset = Math.min(estOffset, els.textInput.value.length);
+      highlightWordAt(lastNativeOffset);
+    }, 200);
+  }
+
+  function stopPositionEstimator() {
+    if (estimateTimer) {
+      clearInterval(estimateTimer);
+      estimateTimer = null;
+    }
+  }
+
   function onPlaybackEnd() {
     stopKeepAlive();
+    stopPositionEstimator();
     setControlsState('idle');
     els.textInput.hidden = false;
     els.textDisplay.hidden = true;
@@ -272,16 +352,27 @@
     mode = 'native';
     const token = playToken;
     const text = els.textInput.value;
+    const rate = currentRate();
+    lastNativeOffset = offset;
+    highlightWordAt(offset); // instant feedback on seek, rather than waiting
+                              // up to one boundary event or estimator tick
     const utt = new SpeechSynthesisUtterance(text.slice(offset));
-    utt.rate = currentRate();
+    utt.rate = rate;
     const v = selectedVoice();
     if (v) utt.voice = v;
 
     utt.onboundary = (e) => {
       if (token !== playToken) return;
       if (typeof e.charIndex === 'number') {
+        lastBoundaryAt = performance.now();
         lastNativeOffset = offset + e.charIndex;
         highlightWordAt(lastNativeOffset);
+        // Resync the estimator to this precise point so that if boundary
+        // events stop arriving partway through a long utterance, the
+        // fallback estimate continues from here rather than an
+        // increasingly stale starting point.
+        estimateAnchorOffset = lastNativeOffset;
+        estimateAnchorTime = performance.now();
       }
     };
     utt.onend = () => { if (token === playToken) onPlaybackEnd(); };
@@ -290,6 +381,7 @@
     utterance = utt;
     speechSynthesis.speak(utt);
     startKeepAlive();
+    startPositionEstimator(offset, rate);
   }
 
   function playChunkedFrom(idx) {
@@ -355,13 +447,14 @@
       clearTimeout(chunkTimer);
       chunkTimer = null;
     }
+    stopPositionEstimator();
 
     els.textInput.hidden = true;
     els.textDisplay.hidden = false;
     setControlsState('playing');
 
     const startOffset = words[idx].start;
-    const useChunked = IS_MOBILE || currentRate() < RATE_FLOOR - 1e-9;
+    const useChunked = readMode === 'words' || currentRate() < RATE_FLOOR - 1e-9;
 
     const begin = () => {
       if (token !== playToken) return;
@@ -418,9 +511,11 @@
       // fresh utterance from that position (see resumeSpeech below).
       playToken += 1;
       stopKeepAlive();
+      stopPositionEstimator();
       speechSynthesis.cancel();
     } else {
       pausedInGap = false;
+      stopPositionEstimator();
       speechSynthesis.pause();
     }
     setControlsState('paused');
@@ -434,6 +529,9 @@
       playNextChunk();
     } else if (mode === 'native' && IS_MOBILE) {
       playNativeFrom(lastNativeOffset);
+    } else if (mode === 'native') {
+      speechSynthesis.resume();
+      startPositionEstimator(lastNativeOffset, currentRate());
     } else {
       speechSynthesis.resume();
     }
@@ -443,6 +541,7 @@
   function stopSpeech() {
     playToken += 1;
     stopKeepAlive();
+    stopPositionEstimator();
     if (chunkTimer) {
       clearTimeout(chunkTimer);
       chunkTimer = null;

@@ -300,6 +300,20 @@ main {
   color: var(--accent);
 }
 
+.mode-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.mode-option {
+  flex: 1;
+}
+
+.mode-option.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 #voice-select {
   width: 100%;
   min-height: 44px;

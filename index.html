@@ -68,6 +68,15 @@
 
       <div class="controls">
         <div class="control-group">
+          <label>Reading style</label>
+          <div class="mode-toggle" id="mode-toggle">
+            <button type="button" class="mode-option" data-mode="sentences">Sentences</button>
+            <button type="button" class="mode-option" data-mode="words">Words</button>
+          </div>
+          <p class="hint" id="mode-hint">Sentences reads with natural flow. Words reads one word at a time, useful for close, deliberate listening.</p>
+        </div>
+
+        <div class="control-group">
           <label for="speed-slider">Playback speed</label>
           <div class="speed-row">
             <span style="font-size:13px; color: var(--text-muted);">0.02x</span>
@@ -85,7 +94,7 @@
             <button type="button" class="speed-preset" data-speed="1.5">1.5x</button>
             <button type="button" class="speed-preset" data-speed="2">2x</button>
           </div>
-          <p class="hint">Below 0.1x, words are played individually with silence between them: your browser's speech engine cannot physically speak slower than 0.1x, so this is what makes the very slow end still get slower.</p>
+          <p class="hint">Below 0.1x, words are always played individually with silence between them, regardless of reading style: your browser's speech engine cannot physically speak slower than 0.1x, so this is what makes the very slow end still get slower.</p>
         </div>
 
         <div class="control-group">

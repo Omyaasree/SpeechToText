@@ -1,8 +1,9 @@
 # Text to Speech
 
 A static, client-side text-to-speech tool. Paste or upload text, pick a speed
-(0.02x–2x), and listen, or click any word to jump playback there. Built on the
-browser-native Web Speech API. No backend, no API keys, no build step.
+(0.02x–2x), choose to read as natural sentences or word by word, and listen,
+or click any word to jump playback there. Built on the browser-native Web
+Speech API. No backend, no API keys, no build step.
 
 ## Run locally
 
@@ -67,8 +68,30 @@ This is a static site, so any static host works. Two common free options:
 
 Either way, the domain itself has to be purchased through a registrar (Namecheap, Google Domains successor, Cloudflare, etc.). That's a purchase only you can make.
 
+## Reading style: Sentences vs. Words
+
+- **Sentences** speaks the text as one continuous utterance per playback,
+  which sounds natural (proper intonation, pauses at punctuation). This is
+  the default.
+- **Words** speaks one word at a time, useful for close, deliberate
+  listening. This is also what always runs below 0.1x, regardless of which
+  option is selected, since the engine physically cannot speak that slowly
+  in one continuous utterance.
+- Switching either the reading style or the speed while something is already
+  playing restarts seamlessly from the exact current word, at the new
+  setting. Neither can change on audio already in flight, so under the hood
+  this cancels and starts a fresh utterance from that position.
+
 ## Browser notes
 
 - Playback speed and voice list depend on the browser/OS. Chrome, Edge, and Safari all support the Web Speech API; voice quality at slow speeds varies by voice, so it's worth testing a couple of voices in the dropdown to find the clearest one.
 - Chrome has a long-standing bug where very long utterances stop after ~15 seconds; the app works around this with a periodic pause/resume, already implemented in `script.js`.
 - The Web Speech API clamps `rate` to a minimum of 0.1x; the engine itself cannot physically speak slower than that. Below 0.1x, `script.js` speaks one word at a time at 0.1x and inserts silence between words to reach the requested pace (see the `RATE_FLOOR` / chunked-playback logic).
+- **Sentences mode word highlighting on mobile is approximate.** The browser's
+  `boundary` event, which reports which word is currently being spoken, is
+  unreliable on mobile (iOS Safari essentially never fires it; Android
+  Chrome is inconsistent). When it doesn't fire, `script.js` falls back to
+  estimating position from elapsed time and the selected rate (see
+  `startPositionEstimator`), which keeps highlighting and position tracking
+  working but not perfectly in sync with the actual audio. Words mode doesn't
+  have this problem since it tracks its own position exactly, word by word.
